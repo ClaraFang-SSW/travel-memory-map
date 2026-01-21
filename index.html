@@ -61,8 +61,11 @@
     import { NebulaEngine } from './nebula.js';
     import { Brain } from './brain.js';
 
+    // ！！！重要：此处已补全密钥声明 ！！！
     const SUPABASE_URL = 'https://qxzjxtrvlynozvbjhcog.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4emp4dHJ2bHlub3p2YmpoY29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Nzk2MTYsImV4cCI6MjA4NDU1NTYxNn0.dq14U-jRXdPq-KAB2076g6Ap6ps1zCYp1JhKZ-FI1zQ';
+    
+    // 使用 window.supabase 确保正确调用 CDN 资源
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const engine = new NebulaEngine();
@@ -74,7 +77,9 @@
         input.addEventListener('input', (e) => {
             const id = e.target.id;
             const val = parseFloat(e.target.value);
-            document.getElementById(`val-${id}`).innerText = val;
+            const display = document.getElementById(`val-${id}`);
+            if(display) display.innerText = val;
+            
             engine.config[id] = val;
             const redraw = ['focus', 'edgeBlur', 'nebulaSize', 'displacement'];
             if (redraw.includes(id) && engine.lastUrl) engine.generatePointCloud(engine.lastUrl);
@@ -89,6 +94,7 @@
             engine.generatePointCloud(url);
             document.getElementById('upload-trigger').classList.add('vanish');
             setTimeout(() => {
+                document.getElementById('upload-trigger').style.display = 'none';
                 document.getElementById('control-panel').style.display = 'block';
                 document.getElementById('chat-area').style.opacity = '1';
                 show();
@@ -112,14 +118,24 @@
     };
 
     async function save(title) {
-        const file = document.getElementById('file-input').files[0];
-        const name = `${Date.now()}.jpg`;
-        const note = `【${title}】\n地：${convo.location}\n时：${convo.time}\n感：${convo.thoughts.join(' | ')}`;
-        await supabase.storage.from('photos').upload(name, file);
-        const { data } = supabase.storage.from('photos').getPublicUrl(name);
-        await supabase.from('memories').insert({ mood_cn: note, photo_url: data.publicUrl });
-        alert("记忆已成功存入星云。"); 
-        location.reload();
+        try {
+            const file = document.getElementById('file-input').files[0];
+            const name = `${Date.now()}.jpg`;
+            const note = `【${title}】\n地：${convo.location}\n时：${convo.time}\n感：${convo.thoughts.join(' | ')}`;
+            
+            const { error: uploadError } = await supabase.storage.from('photos').upload(name, file);
+            if (uploadError) throw uploadError;
+
+            const { data: urlData } = supabase.storage.from('photos').getPublicUrl(name);
+            const { error: dbError } = await supabase.from('memories').insert({ mood_cn: note, photo_url: urlData.publicUrl });
+            if (dbError) throw dbError;
+
+            alert("记忆已成功存入星云。"); 
+            location.reload();
+        } catch (err) {
+            console.error(err);
+            alert("存入失败，请检查网络或配置: " + err.message);
+        }
     }
 </script>
 </body>
