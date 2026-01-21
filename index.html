@@ -2,36 +2,39 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>Nebula Artist - Parameter Control</title>
+    <title>Nebula Artist - Focal Point Control</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;400&display=swap" rel="stylesheet">
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: "Noto Serif SC", serif; }
         
-        /* 右侧控制面板 */
+        /* 右侧控制面板：精致、半透明 */
         #control-panel {
             position: fixed; right: 20px; top: 50%; transform: translateY(-50%);
-            width: 260px; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(15px);
-            padding: 25px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 1000; color: #fff; display: none; /* 初始隐藏，上传后出现 */
+            width: 280px; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(20px);
+            padding: 30px 20px; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000; color: #fff; display: none;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
         }
-        .param-group { margin-bottom: 18px; }
-        .param-group label { display: block; font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 8px; letter-spacing: 1px; }
-        input[type=range] { width: 100%; cursor: pointer; accent-color: #a0d8ef; }
-        .value-display { float: right; color: #a0d8ef; }
+        .param-group { margin-bottom: 20px; }
+        .param-group label { display: block; font-size: 10px; color: rgba(255,255,255,0.4); margin-bottom: 8px; letter-spacing: 2px; text-transform: uppercase; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #a0d8ef; background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px; appearance: none; }
+        input[type=range]::-webkit-slider-thumb { appearance: none; width: 12px; height: 12px; background: #fff; border-radius: 50%; }
+        .value-display { float: right; color: #a0d8ef; font-weight: bold; }
 
-        /* 其它 UI */
+        /* UI 交互元素 */
         #upload-trigger {
             position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%);
-            width: 55px; height: 55px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.5);
-            font-size: 28px; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; z-index: 100; transition: 1.2s;
+            width: 60px; height: 60px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.6);
+            font-size: 32px; font-weight: 100; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 100; transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        #upload-trigger.vanish { bottom: 50%; opacity: 0; transform: translateX(-50%) scale(0.1); filter: blur(10px) brightness(2); }
-        #chat-area { position: fixed; bottom: 10%; left: 50%; transform: translateX(-50%); width: 320px; opacity: 0; transition: 2s; text-align: center; }
-        #ai-text { color: #fff; margin-bottom: 20px; font-size: 15px; }
-        input#user-input { width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); color: #fff; text-align: center; padding: 10px; outline: none; }
+        #upload-trigger.vanish { bottom: 50%; opacity: 0; transform: translateX(-50%) scale(0.1); filter: blur(15px) brightness(3); box-shadow: 0 0 40px #fff; }
+        
+        #chat-area { position: fixed; bottom: 12%; left: 50%; transform: translateX(-50%); width: 350px; opacity: 0; transition: 3s; text-align: center; }
+        #ai-text { color: #fff; margin-bottom: 25px; font-size: 16px; line-height: 2; letter-spacing: 1px; }
+        input#user-input { width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.2); color: #fff; text-align: center; padding: 12px; outline: none; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -41,50 +44,50 @@
 
 <div id="control-panel">
     <div class="param-group">
-        <label>DISPERSION (扩散度) <span class="value-display" id="val-nebulaSize">8</span></label>
-        <input type="range" id="nebulaSize" min="3" max="15" step="0.1" value="8">
+        <label>Focus Intensity (中心解析度) <span class="value-display" id="val-focus">3.2</span></label>
+        <input type="range" id="focus" min="1" max="6" step="0.1" value="3.2">
     </div>
     <div class="param-group">
-        <label>PARTICLE SIZE (粒子大小) <span class="value-display" id="val-pointSize">0.007</span></label>
-        <input type="range" id="pointSize" min="0.001" max="0.02" step="0.001" value="0.007">
+        <label>Dispersion (星云规模) <span class="value-display" id="val-nebulaSize">8.5</span></label>
+        <input type="range" id="nebulaSize" min="4" max="15" step="0.1" value="8.5">
     </div>
     <div class="param-group">
-        <label>CONTRAST (解析密度) <span class="value-display" id="val-density">350</span></label>
-        <input type="range" id="density" min="100" max="600" step="10" value="350">
+        <label>Particle Size (粒子微粒) <span class="value-display" id="val-pointSize">0.006</span></label>
+        <input type="range" id="pointSize" min="0.002" max="0.015" step="0.001" value="0.006">
     </div>
     <div class="param-group">
-        <label>DEPTH STRENGTH (亮度位移) <span class="value-display" id="val-displacement">1.0</span></label>
-        <input type="range" id="displacement" min="0" max="3" step="0.1" value="1.0">
+        <label>Depth Displacement (亮度起伏) <span class="value-display" id="val-displacement">0.8</span></label>
+        <input type="range" id="displacement" min="0" max="2.5" step="0.1" value="0.8">
     </div>
     <div class="param-group">
-        <label>BROWNIAN MOTION (微颤强度) <span class="value-display" id="val-brownian">0.005</span></label>
-        <input type="range" id="brownian" min="0" max="0.02" step="0.001" value="0.005">
+        <label>Brownian Motion (微颤感) <span class="value-display" id="val-brownian">0.004</span></label>
+        <input type="range" id="brownian" min="0" max="0.015" step="0.001" value="0.004">
     </div>
     <div class="param-group">
-        <label>BREATH SPEED (呼吸频率) <span class="value-display" id="val-breatheSpeed">0.8</span></label>
-        <input type="range" id="breatheSpeed" min="0" max="3" step="0.1" value="0.8">
+        <label>Breath Speed (呼吸频率) <span class="value-display" id="val-breatheSpeed">0.6</span></label>
+        <input type="range" id="breatheSpeed" min="0" max="2" step="0.1" value="0.6">
     </div>
     <div class="param-group">
-        <label>BREATH WAVE (呼吸幅度) <span class="value-display" id="val-breatheWave">0.1</span></label>
-        <input type="range" id="breatheWave" min="0" max="0.5" step="0.01" value="0.1">
+        <label>Breath Wave (呼吸深度) <span class="value-display" id="val-breatheWave">0.12</span></label>
+        <input type="range" id="breatheWave" min="0" max="0.4" step="0.01" value="0.12">
     </div>
     <div class="param-group">
-        <label>EDGE RADIUS (清晰圆径) <span class="value-display" id="val-edgeRadius">0.4</span></label>
-        <input type="range" id="edgeRadius" min="0.1" max="0.8" step="0.01" value="0.4">
+        <label>Edge Radius (核心半径) <span class="value-display" id="val-edgeRadius">0.35</span></label>
+        <input type="range" id="edgeRadius" min="0.1" max="0.8" step="0.01" value="0.35">
     </div>
     <div class="param-group">
-        <label>EDGE BLUR (边缘发散) <span class="value-display" id="val-edgeBlur">0.1</span></label>
-        <input type="range" id="edgeBlur" min="0" max="0.5" step="0.01" value="0.1">
+        <label>Edge Blur (发散程度) <span class="value-display" id="val-edgeBlur">0.4</span></label>
+        <input type="range" id="edgeBlur" min="0.1" max="0.7" step="0.01" value="0.4">
     </div>
     <div class="param-group">
-        <label>BLOOM INTENSITY (辉光强度) <span class="value-display" id="val-bloom">1.5</span></label>
-        <input type="range" id="bloom" min="0" max="3" step="0.1" value="1.5">
+        <label>Bloom Intensity (辉光氛围) <span class="value-display" id="val-bloom">1.4</span></label>
+        <input type="range" id="bloom" min="0" max="3" step="0.1" value="1.4">
     </div>
 </div>
 
 <div id="chat-area">
     <div id="ai-text"></div>
-    <input type="text" id="user-input" placeholder="...">
+    <input type="text" id="user-input" placeholder="请轻声诉说...">
 </div>
 
 <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }</script>
@@ -93,23 +96,29 @@
     import { NebulaEngine } from './nebula.js';
     import { Brain } from './brain.js';
 
+    const SUPABASE_URL = 'https://qxzjxtrvlynozvbjhcog.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4emp4dHJ2bHlub3p2YmpoY29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Nzk2MTYsImV4cCI6MjA4NDU1NTYxNn0.dq14U-jRXdPq-KAB2076g6Ap6ps1zCYp1JhKZ-FI1zQ';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
     const engine = new NebulaEngine();
     let questions = [...Brain.objectiveSteps, ...Brain.getRandomQuestions()];
     let step = 0;
+    let convo = { location: "", time: "", thoughts: [] };
 
-    // 监听所有滑动条
+    // 实时参数监听
     document.querySelectorAll('input[type=range]').forEach(input => {
         input.addEventListener('input', (e) => {
             const id = e.target.id;
             const val = parseFloat(e.target.value);
             document.getElementById(`val-${id}`).innerText = val;
             
-            // 实时同步到引擎
             engine.config[id] = val;
             if (id === 'bloom') engine.bloomPass.strength = val;
-            if (id === 'density' || id === 'edgeRadius' || id === 'edgeBlur') {
-                // 需要重新生成的参数
-                if (engine.lastUrl) engine.generatePointCloud(engine.lastUrl);
+            
+            // 涉及密度的参数修改时，重新采样
+            const redrawParams = ['focus', 'edgeRadius', 'edgeBlur', 'nebulaSize', 'displacement'];
+            if (redrawParams.includes(id) && engine.lastUrl) {
+                engine.generatePointCloud(engine.lastUrl);
             }
         });
     });
@@ -118,11 +127,14 @@
         const file = e.target.files[0];
         if(file) {
             const url = URL.createObjectURL(file);
-            engine.lastUrl = url; 
+            engine.lastUrl = url;
             engine.generatePointCloud(url);
             
-            document.getElementById('upload-trigger').classList.add('vanish');
+            const trigger = document.getElementById('upload-trigger');
+            trigger.classList.add('vanish');
+            
             setTimeout(() => {
+                trigger.style.display = 'none';
                 document.getElementById('control-panel').style.display = 'block';
                 document.getElementById('chat-area').style.opacity = '1';
                 show();
@@ -131,14 +143,26 @@
     };
 
     function show() {
-        document.getElementById('ai-text').innerText = step < questions.length ? questions[step] : "为这段记忆命名。";
+        document.getElementById('ai-text').innerText = step < questions.length ? questions[step] : "为这段记忆起个名字吧。";
     }
 
-    document.getElementById('user-input').onkeypress = (e) => {
+    document.getElementById('user-input').onkeypress = async (e) => {
         if(e.key === 'Enter' && e.target.value) {
+            const val = e.target.value;
+            if (step === 0) convo.location = val;
+            else if (step === 1) convo.time = val;
+            else if (step < questions.length) convo.thoughts.push(val);
+            else { await save(val); return; }
             e.target.value = ""; step++; show();
         }
     };
-</script>
-</body>
-</html>
+
+    async function save(title) {
+        const file = document.getElementById('file-input').files[0];
+        const name = `${Date.now()}.jpg`;
+        const note = `【${title}】\n地：${convo.location}\n时：${convo.time}\n感：${convo.thoughts.join(' | ')}`;
+        await supabase.storage.from('photos').upload(name, file);
+        const { data } = supabase.storage.from('photos').getPublicUrl(name);
+        await supabase.from('memories').insert({ mood_cn: note, photo_url: data.publicUrl });
+        alert("记忆已成功存入星云。"); 
+        location.
