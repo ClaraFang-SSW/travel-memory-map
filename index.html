@@ -2,39 +2,47 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>Memory Nebula</title>
+    <title>Nebulous Memory</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;400&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: "Noto Serif SC", serif; }
-        #ui { position: fixed; z-index: 100; width: 100%; text-align: center; height: 100vh; pointer-events: none; }
-        #guidance { top: 50%; left: 50%; transform: translate(-50%, -50%); position: absolute; color: rgba(255,255,255,0.4); cursor: pointer; pointer-events: auto; font-size: 16px; letter-spacing: 4px; }
-        #chat { bottom: 10%; left: 50%; transform: translateX(-50%); position: absolute; width: 350px; opacity: 0; transition: 2s; pointer-events: auto; }
-        #ai-text { color: #fff; margin-bottom: 20px; font-size: 16px; line-height: 2; text-shadow: 0 0 10px rgba(0,0,0,0.5); }
-        input { width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.2); color: #fff; text-align: center; padding: 10px; outline: none; font-size: 14px; }
+        body { margin: 0; background: #000; overflow: hidden; }
+        /* 底部中央的纯净加号 */
+        #upload-trigger {
+            position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%);
+            width: 50px; height: 50px; border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.5);
+            font-size: 28px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 100; transition: 0.8s; backdrop-filter: blur(5px);
+        }
+        #upload-trigger:hover { border-color: #fff; color: #fff; transform: translateX(-50%) scale(1.1); }
+        /* 对话框在上传后悄悄出现 */
+        #chat-area {
+            position: fixed; bottom: 18%; left: 50%; transform: translateX(-50%);
+            width: 320px; opacity: 0; transition: 2.5s; z-index: 100; text-align: center;
+        }
+        input { 
+            width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); 
+            color: #fff; text-align: center; padding: 10px; outline: none; font-size: 14px; 
+        }
     </style>
 </head>
 <body>
 
-<div id="ui">
-    <div id="guidance" onclick="document.getElementById('file-input').click()">开启星云对话</div>
-    <div id="chat">
-        <div id="ai-text"></div>
-        <input type="text" id="user-input" placeholder="在呼吸间写下感悟...">
-    </div>
+<div id="upload-trigger" onclick="document.getElementById('file-input').click()">+</div>
+<input type="file" id="file-input" style="display:none" accept="image/*">
+
+<div id="chat-area">
+    <div id="ai-thought" style="color:#fff; margin-bottom:15px; font-size:15px; line-height:1.8;"></div>
+    <input type="text" id="user-response" placeholder="...">
 </div>
-<input type="file" id="file-input" style="display:none">
 
 <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }</script>
 
 <script type="module">
     import { NebulaEngine } from './nebula.js';
     import { Brain } from './brain.js';
-
-    // 关键修正：确保在主流程中直接持有 Key
-    const SUPABASE_URL = 'https://qxzjxtrvlynozvbjhcog.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4emp4dHJ2bHlub3p2YmpoY29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Nzk2MTYsImV4cCI6MjA4NDU1NTYxNn0.dq14U-jRXdPq-KAB2076g6Ap6ps1zCYp1JhKZ-FI1zQ';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const engine = new NebulaEngine();
     let questions = Brain.getRandomQuestions();
@@ -43,39 +51,23 @@
     document.getElementById('file-input').onchange = (e) => {
         const file = e.target.files[0];
         if(file) {
-            const url = URL.createObjectURL(file);
-            engine.generatePointCloud(url);
-            document.getElementById('guidance').style.opacity = '0';
-            document.getElementById('chat').style.opacity = '1';
-            showQuestion();
+            engine.generatePointCloud(URL.createObjectURL(file));
+            document.getElementById('upload-trigger').style.opacity = '0';
+            document.getElementById('chat-area').style.opacity = '1';
+            updateAI();
         }
     };
 
-    function showQuestion() {
-        document.getElementById('ai-text').innerText = step < questions.length ? questions[step] : "这段对话已在星云中凝结。请给它一个名字。";
+    function updateAI() {
+        document.getElementById('ai-thought').innerText = step < questions.length ? questions[step] : "以此为名，归于星海。";
     }
 
-    document.getElementById('user-input').onkeypress = (e) => {
+    document.getElementById('user-response').onkeypress = (e) => {
         if(e.key === 'Enter' && e.target.value) {
-            if (step >= questions.length) {
-                saveMemory(e.target.value);
-            } else {
-                e.target.value = "";
-                step++;
-                showQuestion();
-            }
+            if(step >= questions.length) location.reload(); // 暂时简单处理
+            e.target.value = ""; step++; updateAI();
         }
     };
-
-    async function saveMemory(title) {
-        const file = document.getElementById('file-input').files[0];
-        const fileName = `${Date.now()}_memory.jpg`;
-        await supabase.storage.from('photos').upload(fileName, file);
-        const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName);
-        await supabase.from('memories').insert({ mood_cn: title, photo_url: urlData.publicUrl });
-        alert("记忆已入星云。");
-        location.reload();
-    }
 </script>
 </body>
 </html>
