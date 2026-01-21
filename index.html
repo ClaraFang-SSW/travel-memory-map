@@ -70,4 +70,250 @@
 
 <script type="module">
     import * as THREE from 'three';
-    import
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+    // --- 你的 Supabase 凭证 (已为你填好) ---
+    const SUPABASE_URL = 'https://qxzjxtrvlynozvbjhcog.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4emp4dHJ2bHlub3p2YmpoY29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Nzk2MTYsImV4cCI6MjA4NDU1NTYxNn0.dq14U-jRXdPq-KAB2076g6Ap6ps1zCYp1JhKZ-FI1zQ'; 
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // --- 粒子系统参数 (可调整) ---
+    const PARTICLE_CONFIG = {
+        density: 180,           // 采样密度 (越高粒子越多，性能开销越大)
+        pointSize: 0.01,        // 粒子大小
+        displacementScale: 2.5, // 亮度Z轴起伏强度
+        brownianMotionScale: 0.02, // 布朗运动强度 (粒子颤动)
+        radialMaskRadius: 0.6,  // 径向遮罩半径 (0-1, 越小边缘越模糊)
+        noiseFrequency: 0.1,    // Simplex Noise 扰动频率
+        noiseAmplitude: 0.05    // Simplex Noise 扰动幅度
+    };
+
+    const simplex = new SimplexNoise();
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // --- 后期处理：Bloom Pass 增强辉光 ---
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        1.0,  // strength
+        0.5,  // radius
+        0.8   // threshold
+    );
+    bloomPass.threshold = 0.05; // 更低的阈值让更多粒子发光
+    bloomPass.strength = 1.2;   // 增强辉光强度
+    bloomPass.radius = 0.7;     // 辉光半径
+    composer.addPass(bloomPass);
+
+    let pointCloud; // Point Cloud 对象
+    camera.position.z = 4; // 调整相机距离以更好地观察
+
+    // --- 心理专家对话脚本 ---
+    const psychoQuestions = [
+        "此刻，这张照片带给你怎样的**色彩感受**？是温暖、冰冷、还是其他？",
+        "如果用三个词来形容你此刻因这张照片而生的**内心状态**，你会选择哪三个词？",
+        "这张画面中的某个细节，是否触及了你**个人成长路径**上的某个思考或发展？它是关于什么？",
+        "如果这张照片是一段对话，它会向你传递什么样的**未来期许**或指引？",
+        "这段感悟，你觉得应该被赋予一个怎样的**名字**，来封存进星云？"
+    ];
+    let currentQIndex = 0;
+    let conversationHistory = []; // 存储所有对话
+
+    const displayArea = document.getElementById('display-area');
+    const userInput = document.getElementById('user-input');
+    const uploadBtn = document.getElementById('complete-upload-btn');
+
+    // 显示 AI 问题
+    function askQuestion() {
+        if (currentQIndex < psychoQuestions.length) {
+            const msg = psychoQuestions[currentQIndex];
+            displayArea.innerHTML += `<div class="ai-msg">${msg}</div>`;
+            displayArea.scrollTop = displayArea.scrollHeight;
+            conversationHistory.push({ speaker: 'AI', text: msg });
+        } else {
+            // 所有问题问完
+            displayArea.innerHTML += `<div class="ai-msg">“我已完整感知你的心流。请为这段珍贵记忆命名，并封存。”</div>`;
+            displayArea.scrollTop = displayArea.scrollHeight;
+            userInput.placeholder = "输入记忆的标题...";
+            uploadBtn.classList.add('active'); // 激活上传按钮
+        }
+    }
+
+    // --- 图片转换为 Point Cloud 的核心函数 ---
+    async function createImagePointCloud(imageUrl) {
+        if (pointCloud) scene.remove(pointCloud);
+
+        const loader = new THREE.TextureLoader();
+        loader.setCrossOrigin('anonymous');
+        const texture = await loader.loadAsync(imageUrl);
+        const img = texture.image;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = PARTICLE_CONFIG.density;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+        const positions = [];
+        const colors = [];
+        const originalPositions = []; // 存储粒子原始位置用于布朗运动和Z轴位移
+
+        const center_x = canvas.width / 2;
+        const center_y = canvas.height / 2;
+
+        for (let y = 0; y < canvas.height; y++) {
+            for (let x = 0; x < canvas.width; x++) {
+                const i = (y * canvas.width + x) * 4;
+                const r = imageData[i];
+                const g = imageData[i + 1];
+                const b = imageData[i + 2];
+                const a = imageData[i + 3];
+
+                // --- Radial Gradient Mask (径向遮罩) ---
+                const dx = x - center_x;
+                const dy = y - center_y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const normalizedDistance = distance / (canvas.width * PARTICLE_CONFIG.radialMaskRadius);
+                let alphaMultiplier = 1.0 - Math.pow(normalizedDistance, 2); // 渐变衰减
+                if (alphaMultiplier < 0) alphaMultiplier = 0;
+
+                // 过滤透明像素或边缘像素
+                if (a > 10 && alphaMultiplier > 0.1) { 
+                    const px = (x / canvas.width - 0.5) * 6; // 缩放粒子云大小
+                    const py = (0.5 - y / canvas.height) * 6;
+
+                    // --- Luminance-based Displacement (亮度Z轴起伏) ---
+                    const luminance = (r * 0.299 + g * 0.587 + b * 0.114) / 255; // 计算亮度
+                    const pz = luminance * PARTICLE_CONFIG.displacementScale; // 亮度越高，Z轴越高
+
+                    positions.push(px, py, pz);
+                    originalPositions.push(px, py, pz); // 记录原始位置，用于布朗运动
+                    colors.push(r / 255, g / 255, b / 255);
+                }
+            }
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+        // --- Additive Blending 材质 ---
+        const material = new THREE.PointsMaterial({
+            size: PARTICLE_CONFIG.pointSize,
+            vertexColors: true,
+            transparent: true,
+            blending: THREE.AdditiveBlending, // 增加辉光效果
+            opacity: 0.9
+        });
+
+        pointCloud = new THREE.Points(geometry, material);
+        pointCloud.userData.originalPositions = originalPositions; // 保存原始位置
+        scene.add(pointCloud);
+
+        // 图像加载后开始对话
+        document.getElementById('chat-container').style.opacity = '1';
+        askQuestion();
+    }
+
+    // --- 动画循环 ---
+    function animate() {
+        requestAnimationFrame(animate);
+        const time = Date.now() * 0.001; // 统一时间基准
+
+        if (pointCloud) {
+            const positions = pointCloud.geometry.attributes.position.array;
+            const originalPositions = pointCloud.userData.originalPositions;
+
+            for (let i = 0; i < positions.length; i += 3) {
+                const ox = originalPositions[i];
+                const oy = originalPositions[i + 1];
+                const oz = originalPositions[i + 2]; // 原始Z轴（亮度决定）
+
+                // --- Simplex Noise 驱动的有机扰动 ---
+                const noise = simplex.noise3D(
+                    ox * PARTICLE_CONFIG.noiseFrequency + time * 0.1,
+                    oy * PARTICLE_CONFIG.noiseFrequency + time * 0.1,
+                    time * 0.05
+                );
+                // 在原始Z轴基础上加上噪声和布朗运动
+                positions[i + 2] = oz + noise * PARTICLE_CONFIG.noiseAmplitude; 
+
+                // --- Brownian Motion (布朗运动) ---
+                positions[i] += (Math.random() - 0.5) * PARTICLE_CONFIG.brownianMotionScale;
+                positions[i + 1] += (Math.random() - 0.5) * PARTICLE_CONFIG.brownianMotionScale;
+            }
+            pointCloud.geometry.attributes.position.needsUpdate = true;
+            pointCloud.rotation.y = Math.sin(time * 0.05) * 0.05; // 缓慢自转
+            pointCloud.rotation.x = Math.sin(time * 0.03) * 0.03;
+        }
+
+        composer.render(); // 使用 composer 渲染以包含 Bloom Pass
+    }
+    animate();
+
+    // --- 事件监听 ---
+    document.getElementById('initial-guidance').addEventListener('click', () => {
+        document.getElementById('file-input').click();
+        document.getElementById('initial-guidance').style.opacity = '0';
+    });
+
+    document.getElementById('file-input').addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => createImagePointCloud(e.target.result);
+            reader.readAsDataURL(file);
+        }
+    });
+
+    userInput.addEventListener('keypress', async (e) => {
+        if (e.key === 'Enter' && userInput.value) {
+            const userResponse = userInput.value;
+            displayArea.innerHTML += `<div class="user-msg">${userResponse}</div>`;
+            displayArea.scrollTop = displayArea.scrollHeight;
+            conversationHistory.push({ speaker: 'User', text: userResponse });
+            userInput.value = '';
+            currentQIndex++;
+            setTimeout(askQuestion, 800); // 稍作延迟，模拟 AI 思考
+        }
+    });
+
+    document.getElementById('complete-upload-btn').addEventListener('click', async () => {
+        // 将完整对话和图片一起上传
+        const finalTitle = userInput.value || "无题记忆";
+        const file = document.getElementById('file-input').files[0];
+
+        if (!file) { alert("请选择一张图片作为记忆的载体。"); return; }
+
+        const fileName = `${Date.now()}_memory.jpg`;
+        await supabase.storage.from('photos').upload(fileName, file);
+        const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName);
+
+        const conversationText = conversationHistory.map(c => `${c.speaker}: ${c.text}`).join('\n');
+
+        await supabase.from('memories').insert({
+            mood_cn: finalTitle + "\n\n" + conversationText, // 标题+对话
+            photo_url: urlData.publicUrl,
+            mood_en: "A nebulous memory, deeply explored." // 默认英文，可后续集成翻译API
+        });
+
+        alert("这份记忆已以星云形态，深邃地封存。");
+        location.reload();
+    });
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
