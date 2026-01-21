@@ -3,166 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nebulous Memory</title>
+    <title>Memory Nebula - Point Cloud Dialogue</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; background: #000; overflow: hidden; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Noto Serif SC', serif; }
         
-        /* 极致简约的中心加号 */
-        #upload-btn {
+        /* 隐藏的文件输入框 */
+        #file-input { display: none; }
+
+        /* 初始的引导语，在对话前 */
+        #initial-guidance {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 70px; height: 70px; border-radius: 50%;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: rgba(255,255,255,0.03);
-            color: rgba(255,255,255,0.3);
-            font-size: 36px; font-weight: 100;
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-            transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1);
-            z-index: 100; backdrop-filter: blur(10px);
+            color: rgba(255,255,255,0.6); font-size: 18px; text-align: center;
+            opacity: 1; transition: opacity 1s ease; z-index: 100; cursor: pointer;
+            padding: 20px;
         }
-        #upload-btn:hover { border-color: rgba(255,255,255,0.5); color: #fff; transform: translate(-50%, -50%) scale(1.05); }
-        
-        /* 对话区：上传后浮现 */
-        #input-zone {
+
+        /* 对话容器，位于星云下方 */
+        #chat-container {
             position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%);
-            width: 320px; opacity: 0; transition: opacity 2.5s ease; z-index: 100; text-align: center;
+            width: 80%; max-width: 500px; z-index: 100;
+            opacity: 0; transition: opacity 1.5s ease;
+            display: flex; flex-direction: column; align-items: center;
         }
-        input { 
-            width: 100%; background: transparent; border: none; 
-            border-bottom: 1px solid rgba(255,255,255,0.1); 
-            color: #fff; padding: 12px; font-size: 14px; 
-            text-align: center; outline: none; letter-spacing: 2px;
+        #display-area {
+            width: 100%; min-height: 80px; max-height: 200px; overflow-y: auto;
+            color: rgba(255,255,255,0.8); font-size: 15px; line-height: 1.8;
+            margin-bottom: 15px; text-align: center; scroll-behavior: smooth;
         }
-        ::placeholder { color: rgba(255,255,255,0.2); font-style: italic; }
+        .ai-msg { color: rgba(255,255,255,0.9); margin-bottom: 15px; opacity: 0; animation: fadeIn 0.8s forwards; }
+        .user-msg { color: #a0d8ef; margin-bottom: 15px; opacity: 0; animation: fadeIn 0.8s forwards; font-style: italic; }
+
+        #user-input {
+            width: 100%; max-width: 350px; background: transparent; border: none; 
+            border-bottom: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 12px; 
+            font-size: 14px; text-align: center; outline: none; letter-spacing: 1px;
+        }
+        ::placeholder { color: rgba(255,255,255,0.3); font-style: italic; }
+
+        /* 上传按钮 */
+        #complete-upload-btn {
+            margin-top: 20px; padding: 10px 25px; border: 1px solid rgba(160, 216, 239, 0.3);
+            background: transparent; color: #a0d8ef; border-radius: 25px;
+            cursor: pointer; font-size: 13px; opacity: 0; transition: opacity 1s ease;
+            pointer-events: none; /* 默认不可点击 */
+        }
+        #complete-upload-btn.active { opacity: 1; pointer-events: auto; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
-<div id="upload-btn" onclick="document.getElementById('file-input').click()"><span>+</span></div>
-<input type="file" id="file-input" style="display:none" accept="image/*">
-<div id="input-zone"><input type="text" id="user-input" placeholder="在星云深处写下你的记忆..."></div>
+<div id="initial-guidance">“轻触此处，上传一张照片，让我们的对话从此刻开始...”</div>
+<input type="file" id="file-input" accept="image/*">
+
+<div id="chat-container">
+    <div id="display-area"></div>
+    <input type="text" id="user-input" placeholder="写下你的感悟...">
+    <button id="complete-upload-btn">封存，让它成为星云</button>
+</div>
 
 <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }</script>
 
 <script type="module">
     import * as THREE from 'three';
-    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-
-    // --- 接口预留与参数控制 ---
-    const CONFIG = {
-        pointSize: 0.012,    // 粒子大小
-        frequency: 0.4,      // 扰动频率 (越高越碎)
-        amplitude: 0.25,     // 扰动幅度 (起伏强度)
-        density: 150         // 采样密度
-    };
-
-    // --- 填入你的专属信息 ---
-    const SUPABASE_URL = 'https://qxzjxtrvlynozvbjhcog.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4emp4dHJ2bHlub3p2YmpoY29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Nzk2MTYsImV4cCI6MjA4NDU1NTYxNn0.dq14U-jRXdPq-KAB2076g6Ap6ps1zCYp1JhKZ-FI1zQ'; 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    const simplex = new SimplexNoise();
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-
-    // 辉光后期处理
-    const composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.5, 0.8);
-    bloom.threshold = 0.05; bloom.strength = 1.5; bloom.radius = 0.6;
-    composer.addPass(bloom);
-
-    let nebula; camera.position.z = 4;
-
-    // 图像采样逻辑
-    async function transformImage(url) {
-        if(nebula) scene.remove(nebula);
-        const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous');
-        const texture = await loader.loadAsync(url);
-        
-        const canvas = document.createElement('canvas');
-        canvas.width = canvas.height = CONFIG.density;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(texture.image, 0, 0, CONFIG.density, CONFIG.density);
-        const data = ctx.getImageData(0, 0, CONFIG.density, CONFIG.density).data;
-
-        const pos = [], cols = [], orig = [];
-        for(let i=0; i<data.length; i+=4) {
-            if(data[i+3] > 50) { // 过滤透明部分
-                const idx = i/4;
-                const x = (idx % CONFIG.density) / CONFIG.density - 0.5;
-                const y = 0.5 - Math.floor(idx / CONFIG.density) / CONFIG.density;
-                const px = x * 5, py = y * 5;
-                pos.push(px, py, 0); orig.push(px, py, 0);
-                cols.push(data[i]/255, data[i+1]/255, data[i+2]/255);
-            }
-        }
-
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-        geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-        nebula = new THREE.Points(geo, new THREE.PointsMaterial({ size: CONFIG.pointSize, vertexColors: true, transparent: true, opacity: 0.7 }));
-        nebula.userData.orig = orig;
-        scene.add(nebula);
-    }
-
-    function animate() {
-        requestAnimationFrame(animate);
-        const time = Date.now() * 0.0006;
-        if(nebula) {
-            const attr = nebula.geometry.attributes.position;
-            const orig = nebula.userData.orig;
-            for(let i=0; i<attr.count; i++) {
-                const ox = orig[i*3], oy = orig[i*3+1];
-                // Perlin Noise 驱动瞬态起伏
-                const n = simplex.noise3D(ox * CONFIG.frequency, oy * CONFIG.frequency, time);
-                attr.array[i*3+2] = n * CONFIG.amplitude;
-            }
-            attr.needsUpdate = true;
-            nebula.rotation.y = Math.sin(time * 0.1) * 0.05;
-        }
-        composer.render();
-    }
-    animate();
-
-    // 交互：文件选择后上传并展示
-    document.getElementById('file-input').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if(!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            transformImage(ev.target.result);
-            document.getElementById('upload-btn').style.opacity = '0';
-            document.getElementById('input-zone').style.opacity = '1';
-        };
-        reader.readAsDataURL(file);
-    });
-
-    // 监听回车存入
-    document.getElementById('user-input').addEventListener('keypress', async (e) => {
-        if(e.key === 'Enter') {
-            const text = e.target.value;
-            if(!text) return;
-            // 存入 Supabase 逻辑 (略) ...
-            alert("记忆已存入星云。");
-            location.reload();
-        }
-    });
-
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        composer.setSize(window.innerWidth, window.innerHeight);
-    });
-</script>
-</body>
-</html>
+    import
