@@ -4,28 +4,22 @@
     <meta charset="UTF-8">
     <title>Nebulous Memory</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;400&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; background: #000; overflow: hidden; }
-        /* 底部中央的纯净加号 */
+        body { margin: 0; background: #000; overflow: hidden; font-family: "Noto Serif SC", serif; }
         #upload-trigger {
             position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%);
-            width: 50px; height: 50px; border-radius: 50%;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(255,255,255,0.05);
-            color: rgba(255,255,255,0.5);
-            font-size: 28px; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; z-index: 100; transition: 0.8s; backdrop-filter: blur(5px);
+            width: 55px; height: 55px; border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.03);
+            color: rgba(255,255,255,0.4); font-size: 28px; font-weight: 100;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 100; backdrop-filter: blur(5px);
+            transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        #upload-trigger:hover { border-color: #fff; color: #fff; transform: translateX(-50%) scale(1.1); }
-        /* 对话框在上传后悄悄出现 */
-        #chat-area {
-            position: fixed; bottom: 18%; left: 50%; transform: translateX(-50%);
-            width: 320px; opacity: 0; transition: 2.5s; z-index: 100; text-align: center;
-        }
-        input { 
-            width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); 
-            color: #fff; text-align: center; padding: 10px; outline: none; font-size: 14px; 
-        }
+        #upload-trigger.vanish { bottom: 50%; opacity: 0; transform: translateX(-50%) scale(0.1); filter: blur(10px) brightness(2); box-shadow: 0 0 30px #fff; }
+        #chat-area { position: fixed; bottom: 18%; left: 50%; transform: translateX(-50%); width: 340px; opacity: 0; transition: 2.5s; z-index: 100; text-align: center; }
+        #ai-text { color: #fff; margin-bottom: 20px; font-size: 16px; line-height: 2; letter-spacing: 1px; }
+        input { width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.15); color: #fff; text-align: center; padding: 12px; outline: none; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -34,8 +28,8 @@
 <input type="file" id="file-input" style="display:none" accept="image/*">
 
 <div id="chat-area">
-    <div id="ai-thought" style="color:#fff; margin-bottom:15px; font-size:15px; line-height:1.8;"></div>
-    <input type="text" id="user-response" placeholder="...">
+    <div id="ai-text"></div>
+    <input type="text" id="user-input" placeholder="...">
 </div>
 
 <script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }</script>
@@ -44,30 +38,53 @@
     import { NebulaEngine } from './nebula.js';
     import { Brain } from './brain.js';
 
+    const SUPABASE_URL = 'https://qxzjxtrvlynozvbjhcog.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4emp4dHJ2bHlub3p2YmpoY29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Nzk2MTYsImV4cCI6MjA4NDU1NTYxNn0.dq14U-jRXdPq-KAB2076g6Ap6ps1zCYp1JhKZ-FI1zQ';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
     const engine = new NebulaEngine();
-    let questions = Brain.getRandomQuestions();
+    let questions = [...Brain.objectiveSteps, ...Brain.getRandomQuestions()];
     let step = 0;
+    let convo = { location: "", time: "", thoughts: [] };
 
     document.getElementById('file-input').onchange = (e) => {
         const file = e.target.files[0];
         if(file) {
             engine.generatePointCloud(URL.createObjectURL(file));
-            document.getElementById('upload-trigger').style.opacity = '0';
-            document.getElementById('chat-area').style.opacity = '1';
-            updateAI();
+            const btn = document.getElementById('upload-trigger');
+            btn.classList.add('vanish');
+            setTimeout(() => { 
+                btn.style.display = 'none'; 
+                document.getElementById('chat-area').style.opacity = '1';
+                show(); 
+            }, 1200);
         }
     };
 
-    function updateAI() {
-        document.getElementById('ai-thought').innerText = step < questions.length ? questions[step] : "以此为名，归于星海。";
+    function show() {
+        document.getElementById('ai-text').innerText = step < questions.length ? questions[step] : "为这段星云记忆起个名字吧。";
     }
 
-    document.getElementById('user-response').onkeypress = (e) => {
+    document.getElementById('user-input').onkeypress = async (e) => {
         if(e.key === 'Enter' && e.target.value) {
-            if(step >= questions.length) location.reload(); // 暂时简单处理
-            e.target.value = ""; step++; updateAI();
+            const val = e.target.value;
+            if (step === 0) convo.location = val;
+            else if (step === 1) convo.time = val;
+            else if (step < questions.length) convo.thoughts.push(val);
+            else { await save(val); return; }
+            e.target.value = ""; step++; show();
         }
     };
+
+    async function save(title) {
+        const file = document.getElementById('file-input').files[0];
+        const name = `${Date.now()}.jpg`;
+        const note = `【${title}】\n地：${convo.location}\n时：${convo.time}\n感：${convo.thoughts.join(' | ')}`;
+        await supabase.storage.from('photos').upload(name, file);
+        const { data } = supabase.storage.from('photos').getPublicUrl(name);
+        await supabase.from('memories').insert({ mood_cn: note, photo_url: data.publicUrl });
+        alert("记忆已入星云。"); location.reload();
+    }
 </script>
 </body>
 </html>
