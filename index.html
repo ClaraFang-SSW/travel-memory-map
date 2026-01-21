@@ -7,11 +7,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;400&display=swap" rel="stylesheet">
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: "Noto Serif SC", serif; }
-        #ui { position: fixed; z-index: 100; width: 100%; text-align: center; }
-        #guidance { top: 50%; left: 50%; transform: translate(-50%, -50%); position: absolute; color: rgba(255,255,255,0.4); cursor: pointer; }
-        #chat { bottom: 10%; left: 50%; transform: translateX(-50%); position: absolute; width: 350px; opacity: 0; transition: 2s; }
-        #ai-text { color: #fff; margin-bottom: 20px; font-size: 16px; line-height: 2; }
-        input { width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); color: #fff; text-align: center; padding: 10px; outline: none; }
+        #ui { position: fixed; z-index: 100; width: 100%; text-align: center; height: 100vh; pointer-events: none; }
+        #guidance { top: 50%; left: 50%; transform: translate(-50%, -50%); position: absolute; color: rgba(255,255,255,0.4); cursor: pointer; pointer-events: auto; font-size: 16px; letter-spacing: 4px; }
+        #chat { bottom: 10%; left: 50%; transform: translateX(-50%); position: absolute; width: 350px; opacity: 0; transition: 2s; pointer-events: auto; }
+        #ai-text { color: #fff; margin-bottom: 20px; font-size: 16px; line-height: 2; text-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        input { width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.2); color: #fff; text-align: center; padding: 10px; outline: none; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -31,9 +31,12 @@
     import { NebulaEngine } from './nebula.js';
     import { Brain } from './brain.js';
 
+    // 关键修正：确保在主流程中直接持有 Key
+    const SUPABASE_URL = 'https://qxzjxtrvlynozvbjhcog.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4emp4dHJ2bHlub3p2YmpoY29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Nzk2MTYsImV4cCI6MjA4NDU1NTYxNn0.dq14U-jRXdPq-KAB2076g6Ap6ps1zCYp1JhKZ-FI1zQ';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
     const engine = new NebulaEngine();
-    const supabase = window.supabase.createClient(Brain.SUPABASE_URL, Brain.SUPABASE_KEY);
-    
     let questions = Brain.getRandomQuestions();
     let step = 0;
 
@@ -49,16 +52,30 @@
     };
 
     function showQuestion() {
-        document.getElementById('ai-text').innerText = step < questions.length ? questions[step] : "封存这段记忆吧。";
+        document.getElementById('ai-text').innerText = step < questions.length ? questions[step] : "这段对话已在星云中凝结。请给它一个名字。";
     }
 
     document.getElementById('user-input').onkeypress = (e) => {
         if(e.key === 'Enter' && e.target.value) {
-            e.target.value = "";
-            step++;
-            showQuestion();
+            if (step >= questions.length) {
+                saveMemory(e.target.value);
+            } else {
+                e.target.value = "";
+                step++;
+                showQuestion();
+            }
         }
     };
+
+    async function saveMemory(title) {
+        const file = document.getElementById('file-input').files[0];
+        const fileName = `${Date.now()}_memory.jpg`;
+        await supabase.storage.from('photos').upload(fileName, file);
+        const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName);
+        await supabase.from('memories').insert({ mood_cn: title, photo_url: urlData.publicUrl });
+        alert("记忆已入星云。");
+        location.reload();
+    }
 </script>
 </body>
 </html>
