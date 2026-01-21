@@ -5,12 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 export class NebulaEngine {
     constructor() {
-        this.config = { 
-            pointSize: 0.006, 
-            density: 350, 
-            displacement: 0.8, 
-            brownian: 0.004 
-        };
+        this.config = { pointSize: 0.007, density: 350, displacement: 1.0, brownian: 0.005 };
         this.init();
         this.createBackgroundStars();
     }
@@ -35,15 +30,15 @@ export class NebulaEngine {
         const pos = new Float32Array(count * 3);
         const cols = new Float32Array(count * 3);
         for(let i=0; i<count; i++) {
-            pos[i*3] = (Math.random() - 0.5) * 35;
-            pos[i*3+1] = (Math.random() - 0.5) * 35;
-            pos[i*3+2] = (Math.random() - 0.5) * 25 - 12;
+            pos[i*3] = (Math.random() - 0.5) * 40;
+            pos[i*3+1] = (Math.random() - 0.5) * 40;
+            pos[i*3+2] = (Math.random() - 0.5) * 20 - 10;
             cols[i*3] = 0.2; cols[i*3+1] = 0.22; cols[i*3+2] = 0.28;
         }
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-        this.bgStars = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.008, vertexColors: true, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending }));
+        this.bgStars = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.008, vertexColors: true, transparent: true, opacity: 0.4 }));
         this.scene.add(this.bgStars);
     }
 
@@ -79,3 +74,19 @@ export class NebulaEngine {
     }
 
     animate() {
+        requestAnimationFrame(() => this.animate());
+        const time = Date.now() * 0.0008;
+        if(this.bgStars) this.bgStars.rotation.y += 0.0001;
+        if(this.nebula) {
+            const attr = this.nebula.geometry.attributes.position;
+            const orig = this.nebula.userData.orig;
+            for(let i=0; i<attr.count; i++) {
+                attr.array[i*3] = orig[i*3] + (Math.random()-0.5) * this.config.brownian;
+                attr.array[i*3+1] = orig[i*3+1] + (Math.random()-0.5) * this.config.brownian;
+                attr.array[i*3+2] = orig[i*3+2] + Math.sin(time + orig[i*3] * 0.5) * 0.1;
+            }
+            attr.needsUpdate = true;
+        }
+        this.composer.render();
+    }
+}
