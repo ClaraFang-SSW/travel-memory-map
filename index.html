@@ -1,34 +1,195 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>Floating Memories</title>
+    <title>Memory Particles | 2022-2024</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; cursor: none; }
-        #canvas-container { width: 100vw; height: 100vh; }
+        body { margin: 0; background: #000; overflow: hidden; cursor: crosshair; }
+        canvas { display: block; }
+        /* 朦胧的底部提示 */
+        #hint {
+            position: fixed; bottom: 30px; width: 100%; text-align: center;
+            color: rgba(255,255,255,0.2); font-family: serif; letter-spacing: 5px;
+            font-size: 12px; pointer-events: none;
+        }
     </style>
 </head>
 <body>
-    <div id="canvas-container"></div>
+    <div id="hint">SCROLL TO TRAVEL / CLICK FOR AMBIENCE</div>
+    <audio id="bgm" src="bgm.mp3" loop></audio>
+
     <script type="importmap">
         { "imports": { 
             "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
             "gsap": "https://cdn.skypack.dev/gsap"
         } }
     </script>
+
     <script type="module">
         import * as THREE from 'three';
         import { gsap } from 'gsap';
 
-        // 你的旅行足迹配置（你可以随时修改这里的图片名）
-        const travelData = [
-            { id: 'iceland', img: 'iceland.jpg', color: '#88ccff' },
-            { id: 'turkey', img: 'turkey.jpg', color: '#ffaa33' },
-            { id: 'barcelona', img: 'barcelona.jpg', color: '#ff4400' }
+        // --- 1. 记忆数据库配置 (地理_年份_序号) ---
+        const memoryMap = [
+            { id: 'iceland_2022', files: ['iceland_2022_01.jpg', 'iceland_2022_02.jpg'], color: '#a0d8ef' },
+            { id: 'turkey_2023', files: ['turkey_2023_01.jpg'], color: '#f9a03f' },
+            { id: 'barcelona_2024', files: ['barcelona_2024_01.jpg'], color: '#ff5a5a' }
         ];
 
-        // --- 这里是核心逻辑：初始化场景、手电筒交互和场景切换 ---
-        // (为了保持简洁，这里省略具体实现，稍后我会为你提供完整版文件内容)
+        let currentSceneIdx = 0;
+        let currentFileIdx = 0;
+        const count = 35000; // 粒子数量
+        let particles, originalPositions, targetPositions;
+
+        // --- 2. 初始化场景 ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const mouse = new THREE.Vector2(-100, -100);
+        const raycaster = new THREE.Raycaster();
+
+        // --- 3. 核心功能：图像转点云 ---
+        async function loadMemory(sceneIdx, fileIdx) {
+            const data = memoryMap[sceneIdx];
+            const fileName = data.files[fileIdx];
+            
+            const loader = new THREE.TextureLoader();
+            const texture = await loader.loadAsync(fileName);
+            const img = texture.image;
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 128; canvas.height = 128;
+            ctx.drawImage(img, 0, 0, 128, 128);
+            const pixels = ctx.getImageData(0, 0, 128, 128).data;
+
+            const newPos = new Float32Array(count * 3);
+            const newColors = new Float32Array(count * 3);
+            const targetCol = new THREE.Color(data.color);
+
+            for (let i = 0; i < count; i++) {
+                const x = Math.floor(Math.random() * 128);
+                const y = Math.floor(Math.random() * 128);
+                const idx = (x + y * 128) * 4;
+                const brightness = (pixels[idx] + pixels[idx+1] + pixels[idx+2]) / 765;
+
+                const px = (x - 64) * 0.15;
+                const py = (64 - y) * 0.15;
+                const pz = brightness * 1.8; // 亮度决定地形高度
+
+                newPos.set([px, py, pz], i * 3);
+                newColors.set([targetCol.r, targetCol.g, targetCol.b], i * 3);
+            }
+            return { pos: newPos, col: newColors };
+        }
+
+        // --- 4. 动画逻辑：粒子变形 ---
+        async function transition(sIdx, fIdx) {
+            const { pos, col } = await loadMemory(sIdx, fIdx);
+            
+            for (let i = 0; i < count; i++) {
+                const i3 = i * 3;
+                // 存储原始位置用于回位
+                originalPositions[i3] = pos[i3];
+                originalPositions[i3+1] = pos[i3+1];
+                originalPositions[i3+2] = pos[i3+2];
+
+                gsap.to(particles.geometry.attributes.position.array, {
+                    [i3]: pos[i3], [i3+1]: pos[i3+1], [i3+2]: pos[i3+2],
+                    duration: 2.5, ease: "expo.inOut"
+                });
+                gsap.to(particles.geometry.attributes.color.array, {
+                    [i3]: col[i3], [i3+1]: col[i3+1], [i3+2]: col[i3+2],
+                    duration: 2
+                });
+            }
+            particles.geometry.attributes.position.needsUpdate = true;
+            particles.geometry.attributes.color.needsUpdate = true;
+        }
+
+        // --- 5. 启动与交互 ---
+        const init = async () => {
+            const initial = await loadMemory(0, 0);
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(initial.pos), 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(initial.col), 3));
+            
+            originalPositions = new Float32Array(initial.pos);
+
+            const mat = new THREE.PointsMaterial({
+                size: 0.025, vertexColors: true, transparent: true, opacity: 0.7,
+                blending: THREE.AdditiveBlending, depthWrite: false
+            });
+
+            particles = new THREE.Points(geo, mat);
+            scene.add(particles);
+            particles.rotation.x = -Math.PI / 6;
+            camera.position.z = 12;
+            animate();
+        };
+
+        window.addEventListener('wheel', (e) => {
+            if (gsap.isTweening(particles.geometry.attributes.position.array)) return;
+            
+            if (e.deltaY > 0) { // 向下滚动：下一张或下一站
+                if (currentFileIdx < memoryMap[currentSceneIdx].files.length - 1) {
+                    currentFileIdx++;
+                } else if (currentSceneIdx < memoryMap.length - 1) {
+                    currentSceneIdx++; currentFileIdx = 0;
+                }
+            } else { // 向上滚动：前一张
+                if (currentFileIdx > 0) {
+                    currentFileIdx--;
+                } else if (currentSceneIdx > 0) {
+                    currentSceneIdx--; currentFileIdx = memoryMap[currentSceneIdx].files.length - 1;
+                }
+            }
+            transition(currentSceneIdx, currentFileIdx);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        window.addEventListener('click', () => {
+            document.getElementById('bgm').play();
+            document.getElementById('hint').style.opacity = 0;
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (particles) {
+                const pos = particles.geometry.attributes.position.array;
+                raycaster.setFromCamera(mouse, camera);
+                const target = new THREE.Vector3();
+                raycaster.ray.at(12, target);
+
+                for (let i = 0; i < count; i++) {
+                    const i3 = i * 3;
+                    const dx = pos[i3] - target.x;
+                    const dy = pos[i3+1] - target.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+
+                    if (dist < 1.2) { // 手电筒拨弄记忆
+                        const f = (1.2 - dist) / 1.2;
+                        pos[i3] += dx * f * 0.08;
+                        pos[i3+1] += dy * f * 0.08;
+                    } else { // 朦胧回位
+                        pos[i3] += (originalPositions[i3] - pos[i3]) * 0.03;
+                        pos[i3+1] += (originalPositions[i3+1] - pos[i3+1]) * 0.03;
+                    }
+                }
+                particles.geometry.attributes.position.needsUpdate = true;
+                particles.rotation.z += 0.0005;
+            }
+            renderer.render(scene, camera);
+        }
+
+        init();
     </script>
 </body>
 </html>
