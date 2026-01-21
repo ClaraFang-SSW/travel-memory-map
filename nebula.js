@@ -59,4 +59,51 @@ export class NebulaEngine {
         const scale = Math.min(canvas.width / tex.image.width, canvas.height / tex.image.height);
         ctx.drawImage(tex.image, (canvas.width - tex.image.width * scale)/2, (canvas.height - tex.image.height * scale)/2, tex.image.width * scale, tex.image.height * scale);
 
-        const data = ctx
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        const pos = [], cols = [], orig = [];
+        const center = canvas.width / 2;
+
+        for(let i=0; i<data.length; i+=4) {
+            const ix = (i/4 % canvas.width);
+            const iy = Math.floor(i/4 / canvas.width);
+            const dx = ix - center, dy = iy - center;
+            const dist = Math.sqrt(dx * dx + dy * dy) / (canvas.width / 2);
+
+            const survivalProbability = Math.pow(Math.max(0, 1.0 - dist / (this.config.edgeRadius + this.config.edgeBlur)), this.config.focus);
+
+            if(data[i+3] > 80 && Math.random() < survivalProbability) {
+                const px = (ix/canvas.width - 0.5) * this.config.nebulaSize;
+                const py = (0.5 - iy/canvas.height) * this.config.nebulaSize;
+                const lum = (data[i]*0.29 + data[i+1]*0.58 + data[i+2]*0.11)/255;
+                const pz = lum * this.config.displacement;
+                
+                pos.push(px, py, pz); orig.push(px, py, pz);
+                cols.push(data[i]/255, data[i+1]/255, data[i+2]/255);
+            }
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+        this.nebula = new THREE.Points(geo, new THREE.PointsMaterial({ size: this.config.pointSize, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true }));
+        this.nebula.userData.orig = orig;
+        this.scene.add(this.nebula);
+    }
+
+    animate() {
+        requestAnimationFrame(() => this.animate());
+        const time = Date.now() * 0.001 * this.config.breatheSpeed;
+        if(this.bgStars) this.bgStars.rotation.y += 0.0001;
+        if(this.nebula) {
+            const attr = this.nebula.geometry.attributes.position;
+            const orig = this.nebula.userData.orig;
+            for(let i=0; i<attr.count; i++) {
+                attr.array[i*3] = orig[i*3] + (Math.random()-0.5) * this.config.brownian;
+                attr.array[i*3+1] = orig[i*3+1] + (Math.random()-0.5) * this.config.brownian;
+                attr.array[i*3+2] = orig[i*3+2] + Math.sin(time + orig[i*3] * 0.5) * this.config.breatheWave;
+            }
+            attr.needsUpdate = true;
+            this.nebula.material.size = this.config.pointSize;
+        }
+        this.composer.render();
+    }
+}
