@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;400&display=swap" rel="stylesheet">
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: "Noto Serif SC", serif; }
+        /* 初始加号：纯净、轻微发光 */
         #upload-trigger {
             position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%);
             width: 55px; height: 55px; border-radius: 50%;
@@ -16,9 +17,13 @@
             cursor: pointer; z-index: 100; backdrop-filter: blur(5px);
             transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        #upload-trigger.vanish { bottom: 50%; opacity: 0; transform: translateX(-50%) scale(0.1); filter: blur(10px) brightness(2); box-shadow: 0 0 30px #fff; }
-        #chat-area { position: fixed; bottom: 18%; left: 50%; transform: translateX(-50%); width: 340px; opacity: 0; transition: 2.5s; z-index: 100; text-align: center; }
-        #ai-text { color: #fff; margin-bottom: 20px; font-size: 16px; line-height: 2; letter-spacing: 1px; }
+        /* 流星划向中心消失效果 */
+        #upload-trigger.vanish { 
+            bottom: 50%; opacity: 0; transform: translateX(-50%) scale(0.1); 
+            filter: blur(10px) brightness(2); box-shadow: 0 0 30px #fff; 
+        }
+        #chat-area { position: fixed; bottom: 15%; left: 50%; transform: translateX(-50%); width: 340px; opacity: 0; transition: 2.5s; z-index: 100; text-align: center; }
+        #ai-text { color: #fff; margin-bottom: 25px; font-size: 16px; line-height: 2; letter-spacing: 1px; text-shadow: 0 0 10px rgba(0,0,0,0.5); }
         input { width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.15); color: #fff; text-align: center; padding: 12px; outline: none; font-size: 14px; }
     </style>
 </head>
