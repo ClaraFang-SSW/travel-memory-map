@@ -2,27 +2,11 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>Nebula Artist - Focal Point Control</title>
+    <title>Nebula Artist</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;400&display=swap" rel="stylesheet">
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: "Noto Serif SC", serif; }
-        
-        /* 右侧控制面板：精致、半透明 */
-        #control-panel {
-            position: fixed; right: 20px; top: 50%; transform: translateY(-50%);
-            width: 280px; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(20px);
-            padding: 30px 20px; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 1000; color: #fff; display: none;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-        }
-        .param-group { margin-bottom: 20px; }
-        .param-group label { display: block; font-size: 10px; color: rgba(255,255,255,0.4); margin-bottom: 8px; letter-spacing: 2px; text-transform: uppercase; }
-        input[type=range] { width: 100%; cursor: pointer; accent-color: #a0d8ef; background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px; appearance: none; }
-        input[type=range]::-webkit-slider-thumb { appearance: none; width: 12px; height: 12px; background: #fff; border-radius: 50%; }
-        .value-display { float: right; color: #a0d8ef; font-weight: bold; }
-
-        /* UI 交互元素 */
         #upload-trigger {
             position: fixed; bottom: 8%; left: 50%; transform: translateX(-50%);
             width: 60px; height: 60px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2);
@@ -31,10 +15,19 @@
             cursor: pointer; z-index: 100; transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
         #upload-trigger.vanish { bottom: 50%; opacity: 0; transform: translateX(-50%) scale(0.1); filter: blur(15px) brightness(3); box-shadow: 0 0 40px #fff; }
-        
+        #control-panel {
+            position: fixed; right: 20px; top: 50%; transform: translateY(-50%);
+            width: 280px; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(20px);
+            padding: 30px 20px; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000; color: #fff; display: none;
+        }
+        .param-group { margin-bottom: 18px; }
+        .param-group label { display: block; font-size: 10px; color: rgba(255,255,255,0.4); margin-bottom: 8px; letter-spacing: 1px; text-transform: uppercase; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #a0d8ef; appearance: none; background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px; }
+        .value-display { float: right; color: #a0d8ef; font-weight: bold; }
         #chat-area { position: fixed; bottom: 12%; left: 50%; transform: translateX(-50%); width: 350px; opacity: 0; transition: 3s; text-align: center; }
-        #ai-text { color: #fff; margin-bottom: 25px; font-size: 16px; line-height: 2; letter-spacing: 1px; }
-        input#user-input { width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.2); color: #fff; text-align: center; padding: 12px; outline: none; font-size: 14px; }
+        #ai-text { color: #fff; margin-bottom: 25px; font-size: 16px; line-height: 2; }
+        input#user-input { width: 100%; background: transparent; border: none; border-bottom: 1px solid rgba(255,255,255,0.2); color: #fff; text-align: center; padding: 12px; outline: none; }
     </style>
 </head>
 <body>
@@ -43,46 +36,18 @@
 <input type="file" id="file-input" style="display:none" accept="image/*">
 
 <div id="control-panel">
-    <div class="param-group">
-        <label>Focus Intensity (中心解析度) <span class="value-display" id="val-focus">3.2</span></label>
-        <input type="range" id="focus" min="1" max="6" step="0.1" value="3.2">
-    </div>
-    <div class="param-group">
-        <label>Dispersion (星云规模) <span class="value-display" id="val-nebulaSize">8.5</span></label>
-        <input type="range" id="nebulaSize" min="4" max="15" step="0.1" value="8.5">
-    </div>
-    <div class="param-group">
-        <label>Particle Size (粒子微粒) <span class="value-display" id="val-pointSize">0.006</span></label>
-        <input type="range" id="pointSize" min="0.002" max="0.015" step="0.001" value="0.006">
-    </div>
-    <div class="param-group">
-        <label>Depth Displacement (亮度起伏) <span class="value-display" id="val-displacement">0.8</span></label>
-        <input type="range" id="displacement" min="0" max="2.5" step="0.1" value="0.8">
-    </div>
-    <div class="param-group">
-        <label>Brownian Motion (微颤感) <span class="value-display" id="val-brownian">0.004</span></label>
-        <input type="range" id="brownian" min="0" max="0.015" step="0.001" value="0.004">
-    </div>
-    <div class="param-group">
-        <label>Breath Speed (呼吸频率) <span class="value-display" id="val-breatheSpeed">0.6</span></label>
-        <input type="range" id="breatheSpeed" min="0" max="2" step="0.1" value="0.6">
-    </div>
-    <div class="param-group">
-        <label>Breath Wave (呼吸深度) <span class="value-display" id="val-breatheWave">0.12</span></label>
-        <input type="range" id="breatheWave" min="0" max="0.4" step="0.01" value="0.12">
-    </div>
-    <div class="param-group">
-        <label>Edge Radius (核心半径) <span class="value-display" id="val-edgeRadius">0.35</span></label>
-        <input type="range" id="edgeRadius" min="0.1" max="0.8" step="0.01" value="0.35">
-    </div>
-    <div class="param-group">
-        <label>Edge Blur (发散程度) <span class="value-display" id="val-edgeBlur">0.4</span></label>
-        <input type="range" id="edgeBlur" min="0.1" max="0.7" step="0.01" value="0.4">
-    </div>
-    <div class="param-group">
-        <label>Bloom Intensity (辉光氛围) <span class="value-display" id="val-bloom">1.4</span></label>
-        <input type="range" id="bloom" min="0" max="3" step="0.1" value="1.4">
-    </div>
+    <div class="param-group"><label>Focus (中心解析) <span class="value-display" id="val-focus">3.2</span></label>
+    <input type="range" id="focus" min="1" max="6" step="0.1" value="3.2"></div>
+    <div class="param-group"><label>Scale (星云规模) <span class="value-display" id="val-nebulaSize">8.5</span></label>
+    <input type="range" id="nebulaSize" min="4" max="15" step="0.1" value="8.5"></div>
+    <div class="param-group"><label>Point Size (微粒) <span class="value-display" id="val-pointSize">0.006</span></label>
+    <input type="range" id="pointSize" min="0.002" max="0.015" step="0.001" value="0.006"></div>
+    <div class="param-group"><label>Displacement (起伏) <span class="value-display" id="val-displacement">0.8</span></label>
+    <input type="range" id="displacement" min="0" max="2.5" step="0.1" value="0.8"></div>
+    <div class="param-group"><label>Breathe Wave (幅度) <span class="value-display" id="val-breatheWave">0.12</span></label>
+    <input type="range" id="breatheWave" min="0" max="0.4" step="0.01" value="0.12"></div>
+    <div class="param-group"><label>Edge Blur (发散) <span class="value-display" id="val-edgeBlur">0.4</span></label>
+    <input type="range" id="edgeBlur" min="0.1" max="0.7" step="0.01" value="0.4"></div>
 </div>
 
 <div id="chat-area">
@@ -105,21 +70,14 @@
     let step = 0;
     let convo = { location: "", time: "", thoughts: [] };
 
-    // 实时参数监听
     document.querySelectorAll('input[type=range]').forEach(input => {
         input.addEventListener('input', (e) => {
             const id = e.target.id;
             const val = parseFloat(e.target.value);
             document.getElementById(`val-${id}`).innerText = val;
-            
             engine.config[id] = val;
-            if (id === 'bloom') engine.bloomPass.strength = val;
-            
-            // 涉及密度的参数修改时，重新采样
-            const redrawParams = ['focus', 'edgeRadius', 'edgeBlur', 'nebulaSize', 'displacement'];
-            if (redrawParams.includes(id) && engine.lastUrl) {
-                engine.generatePointCloud(engine.lastUrl);
-            }
+            const redraw = ['focus', 'edgeBlur', 'nebulaSize', 'displacement'];
+            if (redraw.includes(id) && engine.lastUrl) engine.generatePointCloud(engine.lastUrl);
         });
     });
 
@@ -129,12 +87,8 @@
             const url = URL.createObjectURL(file);
             engine.lastUrl = url;
             engine.generatePointCloud(url);
-            
-            const trigger = document.getElementById('upload-trigger');
-            trigger.classList.add('vanish');
-            
+            document.getElementById('upload-trigger').classList.add('vanish');
             setTimeout(() => {
-                trigger.style.display = 'none';
                 document.getElementById('control-panel').style.display = 'block';
                 document.getElementById('chat-area').style.opacity = '1';
                 show();
@@ -165,4 +119,8 @@
         const { data } = supabase.storage.from('photos').getPublicUrl(name);
         await supabase.from('memories').insert({ mood_cn: note, photo_url: data.publicUrl });
         alert("记忆已成功存入星云。"); 
-        location.
+        location.reload();
+    }
+</script>
+</body>
+</html>
