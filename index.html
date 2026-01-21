@@ -8,7 +8,7 @@
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: "Noto Serif SC", serif; }
         
-        /* 文字显示区：温婉、中立 */
+        /* 文字显示区 */
         #text-overlay {
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             text-align: center; pointer-events: none; opacity: 0; 
@@ -17,7 +17,7 @@
         .cn-text { font-size: 19px; color: #fff; margin-bottom: 20px; letter-spacing: 4px; line-height: 2; }
         .en-text { font-size: 14px; color: rgba(255,255,255,0.4); font-style: italic; }
 
-        /* 艺术化圆形上传按钮 */
+        /* 圆形上传按钮 */
         #upload-trigger {
             position: fixed; bottom: 40px; left: 40px; z-index: 20;
             width: 50px; height: 50px; border-radius: 50%;
@@ -30,22 +30,15 @@
         #upload-trigger:hover {
             background: rgba(255, 255, 255, 0.08);
             border-color: rgba(255, 255, 255, 0.4);
-            transform: scale(1.05);
         }
-        #upload-trigger span {
-            color: rgba(255, 255, 255, 0.3);
-            font-size: 28px; font-weight: 200;
-            margin-top: -2px; /* 视觉微调加号位置 */
-        }
+        #upload-trigger span { color: rgba(255, 255, 255, 0.3); font-size: 28px; font-weight: 200; }
 
-        /* 温婉对话面板 */
+        /* 对话面板 */
         #ai-panel {
             position: fixed; bottom: 110px; left: 40px; z-index: 20;
-            width: 280px; background: rgba(5, 5, 5, 0.9); border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 280px; background: rgba(5, 5, 5, 0.95); border: 1px solid rgba(255, 255, 255, 0.1);
             padding: 24px; display: none; border-radius: 16px; backdrop-filter: blur(15px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
-        #ai-status { font-size: 13px; color: #a0d8ef; font-style: italic; margin-bottom: 15px; line-height: 1.5; }
         textarea { 
             width: 100%; height: 70px; background: transparent; border: 1px solid rgba(255,255,255,0.1); 
             color: #fff; font-size: 13px; padding: 10px; outline: none; resize: none; border-radius: 8px;
@@ -53,23 +46,20 @@
         button { 
             width: 100%; margin-top: 15px; background: rgba(255,255,255,0.05); 
             color: #ccc; border: 1px solid rgba(255,255,255,0.1); padding: 8px; 
-            cursor: pointer; font-size: 13px; border-radius: 8px; transition: 0.3s;
+            cursor: pointer; font-size: 13px; border-radius: 8px;
         }
-        button:hover { background: rgba(255,255,255,0.1); color: #fff; }
     </style>
 </head>
 <body>
 
 <div id="text-overlay"><div id="cn" class="cn-text"></div><div id="en" class="en-text"></div></div>
 
-<div id="upload-trigger" onclick="document.getElementById('file-input').click()">
-    <span>+</span>
-</div>
+<div id="upload-trigger" onclick="document.getElementById('file-input').click()"><span>+</span></div>
 <input type="file" id="file-input" style="display:none" accept="image/*">
 
 <div id="ai-panel">
-    <div id="ai-status">“正在准备记录这段记忆...”</div>
-    <textarea id="user-input" placeholder="在那个瞬间，你的内心泛起了怎样的涟漪？"></textarea>
+    <div id="ai-status" style="font-size: 13px; color: #a0d8ef; font-style: italic; margin-bottom: 15px;">“我已感知到这段记忆...”</div>
+    <textarea id="user-input" placeholder="在那一刻，你的内心泛起了怎样的涟漪？"></textarea>
     <button id="save-btn">存入星海</button>
 </div>
 
@@ -77,31 +67,30 @@
 <script type="module">
     import * as THREE from 'three';
 
-    // --- 填入你的 Supabase 信息 ---
-    const SUPABASE_URL = '你的Project URL';
-    const SUPABASE_KEY = '你的anon key';
+    // 已填入你的专属信息
+    const SUPABASE_URL = 'https://qxzjxtrvlynozvbjhcog.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF4emp4dHJ2bHlub3p2YmpoY29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5Nzk2MTYsImV4cCI6MjA4NDU1NTYxNn0.dq14U-jRXdPq-KAB2076g6Ap6ps1zCYp1JhKZ-FI1zQ'; 
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 宇宙星系渲染逻辑
+    // 星空渲染
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    const count = 20000;
+    const count = 15000;
     const geometry = new THREE.BufferGeometry();
     const pos = new Float32Array(count * 3);
-    for(let i=0; i<count*3; i++) pos[i] = (Math.random()-0.5)*20;
+    for(let i=0; i<count*3; i++) pos[i] = (Math.random()-0.5)*18;
     geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const starField = new THREE.Points(geometry, new THREE.PointsMaterial({color: 0xffffff, size: 0.01, transparent:true, opacity:0.25}));
+    const starField = new THREE.Points(geometry, new THREE.PointsMaterial({color: 0xffffff, size: 0.01, transparent:true, opacity:0.3}));
     scene.add(starField);
-    camera.position.z = 9;
+    camera.position.z = 8;
 
-    function animate() { requestAnimationFrame(animate); starField.rotation.y += 0.00015; renderer.render(scene, camera); }
+    function animate() { requestAnimationFrame(animate); starField.rotation.y += 0.0002; renderer.render(scene, camera); }
     animate();
 
-    // 点击星空随机显示过往记忆
     window.addEventListener('click', async (e) => {
         if(e.target.id === 'upload-trigger' || e.target.closest('#ai-panel')) return;
         const { data } = await supabase.from('memories').select('*');
@@ -109,42 +98,35 @@
             const m = data[Math.floor(Math.random()*data.length)];
             const overlay = document.getElementById('text-overlay');
             document.getElementById('cn').innerText = m.mood_cn;
-            document.getElementById('en').innerText = m.mood_en;
+            document.getElementById('en').innerText = m.mood_en || "A silent whisper in the stars.";
             overlay.classList.add('visible');
             setTimeout(() => overlay.classList.remove('visible'), 7000);
         }
     });
 
-    // 处理上传逻辑：支持持续添加
-    document.getElementById('file-input').addEventListener('change', (e) => {
-        if(e.target.files[0]) {
-            document.getElementById('ai-panel').style.display = 'block';
-            document.getElementById('ai-status').innerText = "“我已感知到这张图片。在那个时刻，你是否找回了那个原本的、被压力藏起来的自己？”";
-        }
+    document.getElementById('file-input').addEventListener('change', () => {
+        document.getElementById('ai-panel').style.display = 'block';
     });
 
     document.getElementById('save-btn').onclick = async () => {
         const text = document.getElementById('user-input').value;
         const file = document.getElementById('file-input').files[0];
-        if(!text) return;
+        if(!text || !file) return;
 
         const btn = document.getElementById('save-btn');
         btn.innerText = "正在点亮星辰...";
         btn.disabled = true;
 
-        // 1. 上传图片 (需确保存储桶名称为 photos)
         const fileName = `${Date.now()}_memory.jpg`;
         await supabase.storage.from('photos').upload(fileName, file);
         const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName);
 
-        // 2. 存入数据库
         await supabase.from('memories').insert({
             mood_cn: text,
-            mood_en: "A whisper of self-trust, captured in the silence of the stars.", // 这里未来会由 Gemini 自动翻译
+            mood_en: "Captured in the starlight.", 
             photo_url: urlData.publicUrl
         });
 
-        document.getElementById('ai-panel').style.display = 'none';
         alert("这份记忆已化作永恒星辰。");
         location.reload(); 
     };
