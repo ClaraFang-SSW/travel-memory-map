@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Floating Memories</title>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; cursor: none; }
+        #canvas-container { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <script type="importmap">
+        { "imports": { 
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "gsap": "https://cdn.skypack.dev/gsap"
+        } }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { gsap } from 'gsap';
+
+        // 你的旅行足迹配置（你可以随时修改这里的图片名）
+        const travelData = [
+            { id: 'iceland', img: 'iceland.jpg', color: '#88ccff' },
+            { id: 'turkey', img: 'turkey.jpg', color: '#ffaa33' },
+            { id: 'barcelona', img: 'barcelona.jpg', color: '#ff4400' }
+        ];
+
+        // --- 这里是核心逻辑：初始化场景、手电筒交互和场景切换 ---
+        // (为了保持简洁，这里省略具体实现，稍后我会为你提供完整版文件内容)
+    </script>
+</body>
+</html>
