@@ -5,6 +5,12 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 export class NebulaEngine {
     constructor() {
+        this.config = { 
+            pointSize: 0.006, 
+            density: 350, 
+            displacement: 0.8, 
+            brownian: 0.004 
+        };
         this.init();
         this.createBackgroundStars();
     }
@@ -24,36 +30,42 @@ export class NebulaEngine {
         this.animate();
     }
 
-    // 初始的分散粒子
     createBackgroundStars() {
+        const count = 8000;
+        const pos = new Float32Array(count * 3);
+        const cols = new Float32Array(count * 3);
+        for(let i=0; i<count; i++) {
+            pos[i*3] = (Math.random() - 0.5) * 35;
+            pos[i*3+1] = (Math.random() - 0.5) * 35;
+            pos[i*3+2] = (Math.random() - 0.5) * 25 - 12;
+            cols[i*3] = 0.2; cols[i*3+1] = 0.22; cols[i*3+2] = 0.28;
+        }
         const geo = new THREE.BufferGeometry();
-        const pos = new Float32Array(5000 * 3);
-        for(let i=0; i<15000; i++) pos[i] = (Math.random() - 0.5) * 20;
         geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        this.bgStars = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0x444444, size: 0.015 }));
+        geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+        this.bgStars = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.008, vertexColors: true, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending }));
         this.scene.add(this.bgStars);
     }
 
     async generatePointCloud(url) {
-        // 移除初始背景，形成图片粒子
         if(this.bgStars) this.scene.remove(this.bgStars);
         if(this.nebula) this.scene.remove(this.nebula);
 
         const tex = await new THREE.TextureLoader().loadAsync(url);
         const canvas = document.createElement('canvas');
-        canvas.width = canvas.height = 160;
+        canvas.width = canvas.height = this.config.density;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(tex.image, 0, 0, 160, 160);
-        const data = ctx.getImageData(0, 0, 160, 160).data;
+        const scale = Math.min(canvas.width / tex.image.width, canvas.height / tex.image.height);
+        ctx.drawImage(tex.image, (canvas.width - tex.image.width * scale)/2, (canvas.height - tex.image.height * scale)/2, tex.image.width * scale, tex.image.height * scale);
 
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
         const pos = [], cols = [], orig = [];
         for(let i=0; i<data.length; i+=4) {
-            const x = (i/4 % 160), y = Math.floor(i/4 / 160);
-            const dist = Math.sqrt(Math.pow(x-80,2) + Math.pow(y-80,2));
-            if(data[i+3] > 50 && dist < 78) {
-                const px = (x/160 - 0.5) * 7, py = (0.5 - y/160) * 7;
+            if(data[i+3] > 80) {
+                const ix = (i/4 % canvas.width), iy = Math.floor(i/4 / canvas.width);
+                const px = (ix/canvas.width - 0.5) * 8, py = (0.5 - iy/canvas.height) * 8;
                 const lum = (data[i]*0.29 + data[i+1]*0.58 + data[i+2]*0.11)/255;
-                const pz = lum * 2.5; // 亮度起伏
+                const pz = lum * this.config.displacement;
                 pos.push(px, py, pz); orig.push(px, py, pz);
                 cols.push(data[i]/255, data[i+1]/255, data[i+2]/255);
             }
@@ -61,27 +73,9 @@ export class NebulaEngine {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
         geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-        this.nebula = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.012, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true }));
+        this.nebula = new THREE.Points(geo, new THREE.PointsMaterial({ size: this.config.pointSize, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true }));
         this.nebula.userData.orig = orig;
         this.scene.add(this.nebula);
     }
 
     animate() {
-        requestAnimationFrame(() => this.animate());
-        const time = Date.now() * 0.001;
-        if(this.bgStars) {
-            this.bgStars.rotation.y += 0.0005;
-        }
-        if(this.nebula) {
-            const attr = this.nebula.geometry.attributes.position;
-            const orig = this.nebula.userData.orig;
-            for(let i=0; i<attr.count; i++) {
-                // 布朗运动微颤
-                attr.array[i*3] += (Math.random()-0.5) * 0.008;
-                attr.array[i*3+1] += (Math.random()-0.5) * 0.008;
-            }
-            attr.needsUpdate = true;
-            this.nebula.rotation.y = Math.sin(time * 0.2) * 0.1;
-        }
-        this.composer.render();
-    }
